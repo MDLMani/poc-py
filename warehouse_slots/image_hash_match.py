@@ -114,3 +114,20 @@ def build_index(directory: Optional[Union[str, Path]]) -> Optional[SkuHashIndex]
         return None
     idx = SkuHashIndex.load(path)
     return idx if len(idx) else None
+
+
+def build_index_from_paths(paths: Dict[str, Path]) -> Optional[SkuHashIndex]:
+    """Build index from explicit sku_id → image path map (e.g. library refs)."""
+    refs: Dict[str, imagehash.ImageHash] = {}
+    kept: Dict[str, Path] = {}
+    for sku_id, path in paths.items():
+        path = Path(path)
+        if not path.is_file() or path.suffix.lower() not in SUPPORTED_SUFFIXES:
+            continue
+        try:
+            img = Image.open(path).convert("RGB")
+        except OSError:
+            continue
+        refs[sku_id] = imagehash.phash(img)
+        kept[sku_id] = path
+    return SkuHashIndex(refs, kept) if refs else None

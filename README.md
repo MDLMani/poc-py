@@ -1,7 +1,8 @@
-# warehouse_slots — Offline Warehouse MVP (Phases 1–4)
+# warehouse_slots — Offline Warehouse MVP (Phases 1–4 + image library)
 
 Offline warehouse slot QR scanner with SQLite inventory events, desktop UI,
-tougher QR decode, and ImageHash visual fallback for UNREADABLE cells.
+tougher QR decode, ImageHash visual fallback, image library, and backend
+availability checks (image/QR vs on-hand stock).
 
 **Product constraints (locked)**
 
@@ -23,7 +24,8 @@ poc-py/
 │   ├── qr_detect.py          # hardened OpenCV QRCodeDetector
 │   ├── image_hash_match.py   # ImageHash SKU reference fallback
 │   ├── slot_pipeline.py      # cell-band + FILLED/EMPTY/UNREADABLE
-│   ├── store.py              # SQLite SKU catalog + IN/OUT events
+│   ├── store.py              # SQLite SKU catalog + IN/OUT + image library
+│   ├── availability.py       # Check image/QR counts vs on-hand stock
 │   ├── local_api.py          # optional 127.0.0.1 HTTP API
 │   ├── ui_app.py             # CustomTkinter desktop UI
 │   ├── cli.py / __main__.py
@@ -279,6 +281,56 @@ pip install --no-index --find-links=offline-wheels -e .
 - [x] Existing tests stay green; no network at runtime
 
 ---
+
+---
+
+## Image library + availability check
+
+Fully offline. Not live-camera–first: still images and the library are primary.
+
+### Library management
+
+Register a local image file with its QR payload (SKU id) and optional label.
+Files are copied under `data/library/`; ImageHash refs are synced to
+`data/library_refs/{QR}.png` so hash fallback can reuse library images.
+
+```bash
+python -m warehouse_slots library add --image path/to/ref.png --qr SKU-ALPHA --name "Alpha ref"
+python -m warehouse_slots library list
+python -m warehouse_slots library remove 1
+```
+
+### Check availability
+
+Analyze a board/still (with slots config) and/or look up QR / library entries,
+then cross-check SQLite SKU catalog + net stock from IN/OUT events.
+
+Per SKU fields: `in_image_count`, `backend_available` (on_hand), `status`:
+
+| Status | Meaning |
+|--------|---------|
+| `OK` | SKU known and on_hand covers image count |
+| `LOW` | on_hand > 0 but less than `in_image_count` |
+| `MISSING_IN_BACKEND` | SKU in catalog but on_hand ≤ 0 |
+| `UNKNOWN_SKU` | QR/SKU not in catalog |
+
+```bash
+# After some IN/OUT events exist in data/warehouse.db:
+python -m warehouse_slots check --image fixtures/F1.png --config config/F1.json
+python -m warehouse_slots check --qr SKU-ALPHA --qr SKU-UNKNOWN
+python -m warehouse_slots check --library-id 1 --db data/warehouse.db
+```
+
+### UI
+
+```bash
+python -m warehouse_slots ui --config config/slots.example.json --image fixtures/board.png
+```
+
+Primary control: **Check availability** (pick still or library image → results table).
+Library panel: add image + QR, gallery list, open library image. Live camera is
+optional and de-emphasized.
+
 
 ## Tests
 

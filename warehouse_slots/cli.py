@@ -12,6 +12,7 @@ import cv2
 
 from .config import load_config
 from .slot_pipeline import analyze_image, format_alerts_text
+from .availability import check_availability
 from .store import WarehouseStore, default_db_path
 
 
@@ -166,10 +167,77 @@ def cmd_ui(args: argparse.Namespace) -> int:
     )
 
 
+
+def cmd_library_add(args: argparse.Namespace) -> int:
+    store = _store_from_args(args)
+    try:
+        entry = store.add_library_image(
+            Path(args.image),
+            qr_payload=args.qr,
+            name=args.name or "",
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    json.dump(entry.to_dict(), sys.stdout, indent=2, sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
+
+
+def cmd_library_list(args: argparse.Namespace) -> int:
+    store = _store_from_args(args)
+    rows = [e.to_dict() for e in store.list_library()]
+    json.dump({"library": rows}, sys.stdout, indent=2, sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
+
+
+def cmd_library_remove(args: argparse.Namespace) -> int:
+    store = _store_from_args(args)
+    ok = store.remove_library(int(args.entry_id))
+    if not ok:
+        print(f"error: library id not found: {args.entry_id}", file=sys.stderr)
+        return 1
+    json.dump({"removed": int(args.entry_id)}, sys.stdout, indent=2, sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    store = _store_from_args(args)
+    qr_list: list[str] = []
+    if getattr(args, "qr", None):
+        qr_list.extend(args.qr)
+    library_ids = list(getattr(args, "library_id", None) or [])
+    if not args.image and not qr_list and not library_ids:
+        print(
+            "error: provide --image (with --config), --qr, and/or --library-id",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        report = check_availability(
+            store,
+            image_path=Path(args.image) if args.image else None,
+            config_path=args.config,
+            qr_payloads=qr_list or None,
+            library_ids=library_ids or None,
+            option_overrides=_option_overrides(args) if args.image else None,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if report.get("scan"):
+        _emit_alerts(report["scan"])
+    json.dump(report, sys.stdout, indent=2, sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="warehouse_slots",
-        description="Offline warehouse slot QR scanner (Phases 1–4)",
+        description="Offline warehouse slot QR scanner (Phases 1–4 + image library)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -226,6 +294,48 @@ def build_parser() -> argparse.ArgumentParser:
     p_ui.add_argument("--camera", type=int, default=0, help="Camera index for live mode")
     _add_phase4_knobs(p_ui)
     p_ui.set_defaults(func=cmd_ui)
+
+    p_lib = sub.add_parser("library", help="Offline image library (image + QR payload)")
+    lib_sub = p_lib.add_subparsers(dest="library_cmd", required=True)
+
+    p_lib_add = lib_sub.add_parser("add", help="Register image file + QR payload (SKU id)")
+    p_lib_add.add_argument("--image", required=True, help="Path to image file")
+    p_lib_add.add_argument("--qr", required=True, help="QR payload / SKU id")
+    p_lib_add.add_argument("--name", default="", help="Optional display label")
+    p_lib_add.add_argument("--db", default=None)
+    p_lib_add.set_defaults(func=cmd_library_add)
+
+    p_lib_list = lib_sub.add_parser("list", help="List library images")
+    p_lib_list.add_argument("--db", default=None)
+    p_lib_list.set_defaults(func=cmd_library_list)
+
+    p_lib_rm = lib_sub.add_parser("remove", help="Remove a library entry by id")
+    p_lib_rm.add_argument("entry_id", type=int, help="Library entry id")
+    p_lib_rm.add_argument("--db", default=None)
+    p_lib_rm.set_defaults(func=cmd_library_remove)
+
+    p_check = sub.add_parser(
+        "check",
+        help="Check availability: image/QR vs SQLite on-hand stock",
+    )
+    p_check.add_argument("--image", default=None, help="Board/still image to analyze")
+    p_check.add_argument("--config", default=None, help="Slots config (required with --image)")
+    p_check.add_argument(
+        "--qr",
+        action="append",
+        default=None,
+        help="QR payload / SKU id to look up (repeatable)",
+    )
+    p_check.add_argument(
+        "--library-id",
+        action="append",
+        type=int,
+        default=None,
+        help="Library entry id whose QR to include (repeatable)",
+    )
+    p_check.add_argument("--db", default=None)
+    _add_phase4_knobs(p_check)
+    p_check.set_defaults(func=cmd_check)
 
     return parser
 
