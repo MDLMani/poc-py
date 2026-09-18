@@ -1,4 +1,10 @@
-# warehouse_slots — Offline Warehouse MVP (Phases 1–4 + image library)
+# warehouse_slots — POC v1.0 ✅ completed
+
+**Status (2026-09-18):** POC v1.0 is complete on `main` (`v1.0.0`).
+
+Includes Phases 0–4 (offline QR slot scan, SQLite IN/OUT, CustomTkinter UI, ImageHash fallback, packaging) plus **image library** and **backend availability check**. Live camera is optional; default workflow is file/library based.
+
+---
 
 Offline warehouse slot QR scanner with SQLite inventory events, desktop UI,
 tougher QR decode, ImageHash visual fallback, image library, and backend
