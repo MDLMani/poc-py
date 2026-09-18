@@ -1,4 +1,8 @@
 {
+  "hash_threshold": 12,
+  "fill_direction": "top_to_bottom",
+  "reference_images_dir": "../fixtures/refs",
+  "enable_hash_fallback": true,
   "slots": [
     {
       "id": "F1",

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "warehouse-slots"
-version = "0.3.0"
-description = "Offline warehouse slot QR scanner (Phases 1–3 MVP)"
+version = "0.4.0"
+description = "Offline warehouse slot QR scanner (Phases 1–4 field hardening)"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -14,10 +14,12 @@ dependencies = [
   "Pillow>=10.0",
   "qrcode[pil]>=7.4",
   "customtkinter>=5.2",
+  "ImageHash>=4.3",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.4"]
+packaging = ["pyinstaller>=6.0"]
 
 [project.scripts]
 warehouse-slots = "warehouse_slots.cli:main"

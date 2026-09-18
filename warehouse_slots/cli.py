@@ -1,4 +1,4 @@
-"""CLI entry points for warehouse_slots (Phases 1–3)."""
+"""CLI entry points for warehouse_slots (Phases 1–4)."""
 
 from __future__ import annotations
 
@@ -6,11 +6,12 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any, Dict
 
 import cv2
 
-from .config import load_slots
-from .slot_pipeline import analyze_image
+from .config import load_config
+from .slot_pipeline import analyze_image, format_alerts_text
 from .store import WarehouseStore, default_db_path
 
 
@@ -19,19 +20,61 @@ def _store_from_args(args: argparse.Namespace) -> WarehouseStore:
     return WarehouseStore(Path(db) if db else default_db_path())
 
 
+def _option_overrides(args: argparse.Namespace) -> Dict[str, Any]:
+    enable = False if getattr(args, "no_hash_fallback", False) else None
+    return {
+        "hash_threshold": getattr(args, "hash_threshold", None),
+        "fill_direction": getattr(args, "fill_direction", None),
+        "reference_images_dir": getattr(args, "refs", None),
+        "enable_hash_fallback": enable,
+    }
+
+
+def _add_phase4_knobs(p: argparse.ArgumentParser) -> None:
+    p.add_argument(
+        "--hash-threshold",
+        type=int,
+        default=None,
+        help="ImageHash Hamming distance threshold (default from config or 12)",
+    )
+    p.add_argument(
+        "--fill-direction",
+        choices=["top_to_bottom", "bottom_to_top"],
+        default=None,
+        help="Cell index 0 at top or bottom of ROI",
+    )
+    p.add_argument(
+        "--refs",
+        default=None,
+        help="Directory of SKU reference images for ImageHash fallback",
+    )
+    p.add_argument(
+        "--no-hash-fallback",
+        action="store_true",
+        help="Disable ImageHash fallback even if refs are configured",
+    )
+
+
+def _emit_alerts(report: dict) -> None:
+    text = format_alerts_text(report)
+    if text:
+        print(text, file=sys.stderr)
+
+
 def cmd_analyze(args: argparse.Namespace) -> int:
     image_path = Path(args.image)
     if not image_path.is_file():
         print(f"error: image not found: {image_path}", file=sys.stderr)
         return 1
 
-    slots = load_slots(args.config)
+    slots, options = load_config(args.config, overrides=_option_overrides(args))
     image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
     if image is None:
         print(f"error: failed to read image: {image_path}", file=sys.stderr)
         return 1
 
-    report = analyze_image(image, slots)
+    report = analyze_image(image, slots, options=options)
+    _emit_alerts(report)
     json.dump(report, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")
     return 0
@@ -64,14 +107,15 @@ def cmd_confirm(args: argparse.Namespace) -> int:
         print(f"error: image not found: {image_path}", file=sys.stderr)
         return 1
 
-    scan = {}
+    scan: dict = {}
     if args.config:
-        slots = load_slots(args.config)
+        slots, options = load_config(args.config, overrides=_option_overrides(args))
         image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
         if image is None:
             print(f"error: failed to read image: {image_path}", file=sys.stderr)
             return 1
-        scan = analyze_image(image, slots)
+        scan = analyze_image(image, slots, options=options)
+        _emit_alerts(scan)
     elif args.scan_json:
         scan = json.loads(Path(args.scan_json).read_text(encoding="utf-8"))
 
@@ -115,22 +159,26 @@ def cmd_ui(args: argparse.Namespace) -> int:
         db_path=Path(args.db) if args.db else default_db_path(),
         image_path=Path(args.image) if args.image else None,
         camera_index=args.camera,
+        hash_threshold=args.hash_threshold,
+        fill_direction=args.fill_direction,
+        refs=args.refs,
+        enable_hash_fallback=(False if args.no_hash_fallback else None),
     )
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="warehouse_slots",
-        description="Offline warehouse slot QR scanner (Phases 1–3)",
+        description="Offline warehouse slot QR scanner (Phases 1–4)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_an = sub.add_parser("analyze", help="Analyze an image against a slots config")
     p_an.add_argument("image", help="Path to input image (PNG/JPEG)")
     p_an.add_argument("--config", required=True, help="Path to slots JSON config")
+    _add_phase4_knobs(p_an)
     p_an.set_defaults(func=cmd_analyze)
 
-    # Phase 2 — catalog
     p_sku = sub.add_parser("sku", help="SKU catalog commands")
     sku_sub = p_sku.add_subparsers(dest="sku_cmd", required=True)
 
@@ -146,7 +194,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_sku_list.add_argument("--seed", action="store_true", help="Seed demo SKUs first")
     p_sku_list.set_defaults(func=cmd_sku_list)
 
-    # Phase 2 — confirm IN/OUT
     for direction, help_txt in (("in", "Confirm inbound"), ("out", "Confirm outbound")):
         p = sub.add_parser(direction, help=help_txt)
         p.add_argument("image", help="Capture/scan image path to store")
@@ -154,6 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--scan-json", default=None, help="Precomputed scan JSON file")
         p.add_argument("--note", default="")
         p.add_argument("--db", default=None)
+        _add_phase4_knobs(p)
         p.set_defaults(func=cmd_confirm, direction=direction.upper())
 
     p_ev = sub.add_parser("events", help="List recent IN/OUT events")
@@ -167,7 +215,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--db", default=None)
     p_serve.set_defaults(func=cmd_serve)
 
-    # Phase 3 — UI
     p_ui = sub.add_parser("ui", help="Launch CustomTkinter desktop UI")
     p_ui.add_argument(
         "--config",
@@ -177,6 +224,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_ui.add_argument("--db", default=None)
     p_ui.add_argument("--image", default=None, help="Still image mode (skip camera)")
     p_ui.add_argument("--camera", type=int, default=0, help="Camera index for live mode")
+    _add_phase4_knobs(p_ui)
     p_ui.set_defaults(func=cmd_ui)
 
     return parser

@@ -18,13 +18,33 @@ CONFIG_DIR = ROOT / "config"
 @pytest.fixture(scope="module", autouse=True)
 def fixtures():
     result = generate_all(FIXTURES)
+    refs = FIXTURES / "refs"
     (CONFIG_DIR / "slots.example.json").write_text(
-        json.dumps({"slots": result["board_slots"]}, indent=2) + "\n",
+        json.dumps(
+            {
+                "hash_threshold": 12,
+                "fill_direction": "top_to_bottom",
+                "reference_images_dir": str(refs.resolve()),
+                "enable_hash_fallback": True,
+                "slots": result["board_slots"],
+            },
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
     for name, slot in result["single_slots"].items():
+        cfg = {"slots": [slot]}
+        if name in ("F_hash_fallback", "F_unreadable"):
+            cfg.update(
+                {
+                    "hash_threshold": 12,
+                    "reference_images_dir": str(refs.resolve()),
+                    "enable_hash_fallback": True,
+                }
+            )
         (CONFIG_DIR / f"{name}.json").write_text(
-            json.dumps({"slots": [slot]}, indent=2) + "\n", encoding="utf-8"
+            json.dumps(cfg, indent=2) + "\n", encoding="utf-8"
         )
 
 
