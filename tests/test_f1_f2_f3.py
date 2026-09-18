@@ -24,13 +24,30 @@ def fixtures_and_configs():
     result = generate_all(FIXTURES)
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-    board_cfg = {"slots": result["board_slots"]}
+    refs = FIXTURES / "refs"
+    board_cfg = {
+        "hash_threshold": 12,
+        "fill_direction": "top_to_bottom",
+        "reference_images_dir": str(refs.resolve()),
+        "enable_hash_fallback": True,
+        "slots": result["board_slots"],
+    }
     (CONFIG_DIR / "slots.example.json").write_text(
         json.dumps(board_cfg, indent=2) + "\n", encoding="utf-8"
     )
     for name, slot in result["single_slots"].items():
+        cfg = {"slots": [slot]}
+        if name in ("F_hash_fallback", "F_unreadable"):
+            cfg.update(
+                {
+                    "hash_threshold": 12,
+                    "fill_direction": "top_to_bottom",
+                    "reference_images_dir": str(refs.resolve()),
+                    "enable_hash_fallback": True,
+                }
+            )
         (CONFIG_DIR / f"{name}.json").write_text(
-            json.dumps({"slots": [slot]}, indent=2) + "\n", encoding="utf-8"
+            json.dumps(cfg, indent=2) + "\n", encoding="utf-8"
         )
     return result
 

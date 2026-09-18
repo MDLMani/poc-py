@@ -1,7 +1,7 @@
 {
   "slots": [
     {
-      "id": "F_unreadable",
+      "id": "F_hash_fallback",
       "roi": [
         40,
         40,

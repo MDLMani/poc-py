@@ -7,11 +7,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1] / "warehouse_slots"
 
-# Modules on the offline runtime path (analysis + inventory store)
+# Modules on the offline runtime path (analysis + inventory store + Phase 4 hash)
 OFFLINE_MODULES = [
     "config.py",
     "qr_detect.py",
     "slot_pipeline.py",
+    "image_hash_match.py",
     "store.py",
     "cli.py",
 ]
@@ -42,11 +43,8 @@ def _imported_names(path: Path) -> set[str]:
 
 
 def test_offline_modules_have_no_network_imports():
-    # cli may import local_api only inside cmd_serve — check top-level AST imports
     for name in OFFLINE_MODULES:
         path = ROOT / name
         imported = _imported_names(path)
         bad = imported & FORBIDDEN
-        # cli imports local_api lazily inside function — AST ImportFrom of relative
-        # local_api is ok; urllib/socket at top level is not
         assert not bad, f"{name} imports forbidden network modules: {bad}"

@@ -44,3 +44,7 @@ fixtures/*.png
 # Phase 2/3 local data
 data/
 *.db
+
+# Phase 4 packaging artifacts
+offline-wheels/
+*.spec.bak

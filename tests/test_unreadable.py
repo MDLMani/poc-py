@@ -21,9 +21,19 @@ CONFIG_DIR = ROOT / "config"
 def ensure_fixtures():
     result = generate_all(FIXTURES)
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    refs = FIXTURES / "refs"
     for name, slot in result["single_slots"].items():
+        cfg = {"slots": [slot]}
+        if name in ("F_hash_fallback", "F_unreadable"):
+            cfg.update(
+                {
+                    "hash_threshold": 12,
+                    "reference_images_dir": str(refs.resolve()),
+                    "enable_hash_fallback": True,
+                }
+            )
         (CONFIG_DIR / f"{name}.json").write_text(
-            json.dumps({"slots": [slot]}, indent=2) + "\n", encoding="utf-8"
+            json.dumps(cfg, indent=2) + "\n", encoding="utf-8"
         )
     return result
 

@@ -1,9 +1,10 @@
-"""CustomTkinter desktop UI for offline warehouse slot scanning (Phase 3).
+"""CustomTkinter desktop UI for offline warehouse slot scanning (Phases 3–4).
 
 Features:
   - Still image mode (load PNG) and optional live camera
   - Slot ROI overlays on the preview
   - Per-slot results table (counts / empty / unreadable)
+  - Clear UNREADABLE / hash-fallback alerts (Phase 4)
   - Snapshot + Confirm IN / Confirm OUT wired to Phase 2 SQLite store
   - Fully offline (no network imports in analysis path)
 """
@@ -18,8 +19,8 @@ from typing import Any, Dict, List, Optional
 import cv2
 import numpy as np
 
-from .config import SlotConfig, load_slots
-from .slot_pipeline import analyze_image
+from .config import load_config
+from .slot_pipeline import analyze_image, format_alerts_text
 from .store import WarehouseStore, default_db_path
 
 
@@ -29,7 +30,7 @@ def _bgr_to_rgb(img: np.ndarray) -> np.ndarray:
 
 def draw_overlays(
     image_bgr: np.ndarray,
-    slots: List[SlotConfig],
+    slots: List,
     report: Optional[Dict[str, Any]] = None,
 ) -> np.ndarray:
     """Draw ROI rectangles and optional status labels onto a copy."""
@@ -40,7 +41,9 @@ def draw_overlays(
     colors = {
         "ok": (40, 180, 40),
         "warn": (0, 165, 255),
+        "alert": (0, 0, 220),
         "empty": (180, 180, 40),
+        "hash": (200, 100, 0),
     }
     for slot in slots:
         x, y, w, h = slot.roi
@@ -48,16 +51,21 @@ def draw_overlays(
         color = colors["ok"]
         label = slot.id
         if info:
-            if info.get("unreadable", 0) > 0:
-                color = colors["warn"]
+            unread = info.get("unreadable", 0)
+            hash_filled = info.get("hash_filled", 0)
+            if unread > 0:
+                color = colors["alert"]
+            elif hash_filled > 0:
+                color = colors["hash"]
             elif info.get("filled", 0) == 0:
                 color = colors["empty"]
             label = (
                 f"{slot.id} F={info.get('filled', 0)} "
                 f"E={info.get('empty', 0)} U={info.get('unreadable', 0)}"
             )
+            if hash_filled:
+                label += f" H={hash_filled}"
         cv2.rectangle(out, (x, y), (x + w, y + h), color, 2)
-        # Cell band guides
         for i in range(1, slot.capacity):
             cy = y + int(round(i * h / slot.capacity))
             cv2.line(out, (x, cy), (x + w, cy), color, 1)
@@ -71,6 +79,24 @@ def draw_overlays(
             1,
             cv2.LINE_AA,
         )
+        # Per-cell UNREADABLE markers
+        if info:
+            for cell in info.get("cells") or []:
+                if cell.get("status") != "UNREADABLE":
+                    continue
+                idx = int(cell["index"])
+                cy0 = y + int(round(idx * h / slot.capacity))
+                cy1 = y + int(round((idx + 1) * h / slot.capacity))
+                cv2.putText(
+                    out,
+                    "UNREADABLE",
+                    (x + 4, (cy0 + cy1) // 2),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.45,
+                    colors["alert"],
+                    1,
+                    cv2.LINE_AA,
+                )
     return out
 
 
@@ -79,6 +105,10 @@ def run_ui(
     db_path: Optional[Path] = None,
     image_path: Optional[Path] = None,
     camera_index: int = 0,
+    hash_threshold: Optional[int] = None,
+    fill_direction: Optional[str] = None,
+    refs: Optional[str] = None,
+    enable_hash_fallback: Optional[bool] = None,
 ) -> int:
     try:
         import customtkinter as ctk
@@ -95,7 +125,13 @@ def run_ui(
         print(f"error: config not found: {config_path}")
         return 1
 
-    slots = load_slots(config_path)
+    overrides = {
+        "hash_threshold": hash_threshold,
+        "fill_direction": fill_direction,
+        "reference_images_dir": refs,
+        "enable_hash_fallback": enable_hash_fallback,
+    }
+    slots, options = load_config(config_path, overrides=overrides)
     store = WarehouseStore(db_path or default_db_path())
     store.seed_common_skus()
 
@@ -106,19 +142,19 @@ def run_ui(
     ctk.set_default_color_theme("blue")
 
     app = ctk.CTk()
-    app.title("Warehouse Slots — Offline UI (Phase 3)")
-    app.geometry("1100x720")
+    app.title("Warehouse Slots — Offline UI (Phase 4)")
+    app.geometry("1100x760")
 
     state: Dict[str, Any] = {
-        "frame": None,  # latest BGR frame
+        "frame": None,
         "report": None,
         "cap": None,
         "live": False,
         "photo": None,
         "still_path": Path(image_path) if image_path else None,
+        "options": options,
     }
 
-    # Layout
     left = ctk.CTkFrame(app)
     left.pack(side="left", fill="both", expand=True, padx=8, pady=8)
     right = ctk.CTkFrame(app, width=360)
@@ -132,13 +168,28 @@ def run_ui(
         anchor="w", padx=8, pady=(8, 4)
     )
 
-    table = ctk.CTkTextbox(right, width=340, height=280)
+    alert_box = ctk.CTkTextbox(right, width=340, height=100, text_color="#cc2222")
+    alert_box.pack(padx=8, pady=4, fill="x")
+    alert_box.insert("1.0", "No UNREADABLE alerts.\n")
+    alert_box.configure(state="disabled")
+
+    table = ctk.CTkTextbox(right, width=340, height=240)
     table.pack(padx=8, pady=4, fill="x")
     table.insert("1.0", "Per-slot results will appear here.\n")
     table.configure(state="disabled")
 
     def set_status(msg: str) -> None:
         status_var.set(msg)
+
+    def refresh_alerts(report: Optional[Dict[str, Any]]) -> None:
+        alert_box.configure(state="normal")
+        alert_box.delete("1.0", "end")
+        text = format_alerts_text(report or {})
+        if not text:
+            alert_box.insert("1.0", "No UNREADABLE / hash alerts.\n")
+        else:
+            alert_box.insert("1.0", text + "\n")
+        alert_box.configure(state="disabled")
 
     def refresh_table(report: Optional[Dict[str, Any]]) -> None:
         table.configure(state="normal")
@@ -154,13 +205,14 @@ def run_ui(
                 f"{s['slot_id']:4} | {s.get('filled', 0):6} | "
                 f"{s.get('empty', 0):5} | {s.get('unreadable', 0):6} | {counts}"
             )
+            if s.get("hash_filled"):
+                lines.append(f"     hash_fallback_cells={s['hash_filled']}")
         table.insert("1.0", "\n".join(lines) + "\n")
         table.configure(state="disabled")
 
     def show_frame(frame_bgr: np.ndarray) -> None:
         overlay = draw_overlays(frame_bgr, slots, state["report"])
         rgb = _bgr_to_rgb(overlay)
-        # Fit into preview
         max_w, max_h = 720, 640
         h, w = rgb.shape[:2]
         scale = min(max_w / w, max_h / h, 1.0)
@@ -172,7 +224,7 @@ def run_ui(
             )
         pil = Image.fromarray(rgb)
         photo = ImageTk.PhotoImage(pil)
-        state["photo"] = photo  # keep ref
+        state["photo"] = photo
         preview_label.configure(image=photo, text="")
 
     def analyze_current() -> None:
@@ -180,11 +232,16 @@ def run_ui(
         if frame is None:
             set_status("No frame to analyze")
             return
-        report = analyze_image(frame, slots)
+        report = analyze_image(frame, slots, options=state["options"])
         state["report"] = report
         refresh_table(report)
+        refresh_alerts(report)
         show_frame(frame)
-        set_status("Scan complete (offline)")
+        n_alert = len(report.get("alerts") or [])
+        if n_alert:
+            set_status(f"Scan complete — {n_alert} UNREADABLE/hash alert(s)")
+        else:
+            set_status("Scan complete (offline)")
 
     def load_still(path: Path) -> None:
         img = cv2.imread(str(path), cv2.IMREAD_COLOR)
@@ -195,6 +252,7 @@ def run_ui(
         state["still_path"] = path
         state["report"] = None
         refresh_table(None)
+        refresh_alerts(None)
         show_frame(img)
         set_status(f"Loaded still: {path}")
 
@@ -270,7 +328,6 @@ def run_ui(
             f"→ {path.name} skus={lines}"
         )
 
-    # Buttons
     btn_row = ctk.CTkFrame(right)
     btn_row.pack(fill="x", padx=8, pady=8)
     ctk.CTkButton(btn_row, text="Open still…", command=browse_still).pack(
@@ -298,12 +355,10 @@ def run_ui(
 
     app.protocol("WM_DELETE_WINDOW", on_close)
 
-    # Initial still if provided
     if state["still_path"] and state["still_path"].is_file():
         load_still(state["still_path"])
         analyze_current()
     else:
-        # Prefer board fixture if present
         board = Path("fixtures/board.png")
         if board.is_file():
             load_still(board)
@@ -314,11 +369,11 @@ def run_ui(
 
 def smoke_check(config_path: Path, image_path: Path, db_path: Path) -> Dict[str, Any]:
     """Headless smoke: load image, overlay, analyze, record IN+OUT. No GUI."""
-    slots = load_slots(config_path)
+    slots, options = load_config(config_path)
     img = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
     if img is None:
         raise FileNotFoundError(image_path)
-    report = analyze_image(img, slots)
+    report = analyze_image(img, slots, options=options)
     overlay = draw_overlays(img, slots, report)
     store = WarehouseStore(db_path)
     store.seed_common_skus()
@@ -334,4 +389,5 @@ def smoke_check(config_path: Path, image_path: Path, db_path: Path) -> Dict[str,
         "event_in": ev_in.id,
         "event_out": ev_out.id,
         "snap": str(snap),
+        "alerts": report.get("alerts") or [],
     }

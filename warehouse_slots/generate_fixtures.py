@@ -1,4 +1,4 @@
-"""Generate high-contrast fixture images F1/F2/F3 for Phase 0 acceptance.
+"""Generate high-contrast fixture images F1/F2/F3 for Phase 0+ acceptance.
 
 Offline-only after dependencies are installed. Uses qrcode[pil] + Pillow.
 OpenCV QRCodeDetector needs large modules and quiet zones — we render
@@ -7,6 +7,9 @@ oversized QRs on a pure-white canvas.
 Layout (each fixture image is independent; same local ROI origin):
   - F1.png / F2.png / F3.png — one slot each
   - board.png — F1 | F2 | F3 side-by-side (matches config/slots.example.json)
+  - F_unreadable.png — QR + noise blotch + empties
+  - F_hash_fallback.png — visual label (no QR) matched via ImageHash refs
+  - refs/SKU-VISUAL.png — local SKU reference for hash fallback demos
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 import qrcode
-from PIL import Image
+from PIL import Image, ImageDraw
 
 
 # Geometry tuned for reliable OpenCV decode
@@ -60,7 +63,6 @@ def _fit_qr_in_cell(qr_img: Image.Image, cell_w: int, cell_h: int) -> Image.Imag
     return cell
 
 
-
 def _make_noise_cell(cell_w: int, cell_h: int) -> Image.Image:
     """Dark blotch that is occupied but not a valid QR → UNREADABLE."""
     import random
@@ -68,7 +70,6 @@ def _make_noise_cell(cell_w: int, cell_h: int) -> Image.Image:
     cell = Image.new("RGB", (cell_w, cell_h), (255, 255, 255))
     pixels = cell.load()
     rng = random.Random(42)
-    # Scattered dark rectangles — enough to trip occupancy, not a QR
     for _ in range(40):
         x0 = rng.randint(10, cell_w - 40)
         y0 = rng.randint(10, cell_h - 40)
@@ -77,7 +78,6 @@ def _make_noise_cell(cell_w: int, cell_h: int) -> Image.Image:
         for y in range(y0, min(cell_h - 1, y0 + bh)):
             for x in range(x0, min(cell_w - 1, x0 + bw)):
                 pixels[x, y] = (20, 20, 20)
-    # Border frame to look "present"
     for x in range(20, cell_w - 20):
         for t in range(4):
             pixels[x, 20 + t] = (0, 0, 0)
@@ -86,6 +86,31 @@ def _make_noise_cell(cell_w: int, cell_h: int) -> Image.Image:
         for t in range(4):
             pixels[20 + t, y] = (0, 0, 0)
             pixels[cell_w - 24 + t, y] = (0, 0, 0)
+    return cell
+
+
+def _make_visual_sku_label(cell_w: int = CELL_W, cell_h: int = CELL_H) -> Image.Image:
+    """Distinctive non-QR product label for ImageHash fallback demos.
+
+    High-contrast colored geometry that is clearly occupied but not a QR.
+    """
+    cell = Image.new("RGB", (cell_w, cell_h), (245, 245, 250))
+    draw = ImageDraw.Draw(cell)
+    # Outer frame
+    draw.rectangle([12, 12, cell_w - 13, cell_h - 13], outline=(20, 40, 120), width=6)
+    # Diagonal stripe band
+    for i in range(-cell_h, cell_w, 18):
+        draw.line([(i, 0), (i + cell_h, cell_h)], fill=(200, 40, 40), width=8)
+    # Center badge
+    cx, cy = cell_w // 2, cell_h // 2
+    draw.ellipse([cx - 55, cy - 55, cx + 55, cy + 55], fill=(30, 140, 70), outline=(0, 0, 0), width=3)
+    draw.rectangle([cx - 40, cy - 18, cx + 40, cy + 18], fill=(255, 220, 40))
+    # Corner chevrons (unique fingerprint for phash)
+    draw.polygon([(20, 20), (70, 20), (20, 70)], fill=(0, 90, 180))
+    draw.polygon(
+        [(cell_w - 20, cell_h - 20), (cell_w - 70, cell_h - 20), (cell_w - 20, cell_h - 70)],
+        fill=(180, 0, 120),
+    )
     return cell
 
 
@@ -102,6 +127,8 @@ def render_slot_stack(
             cell = Image.new("RGB", (cell_w, cell_h), (255, 255, 255))
         elif payload == "__NOISE__":
             cell = _make_noise_cell(cell_w, cell_h)
+        elif payload == "__VISUAL__":
+            cell = _make_visual_sku_label(cell_w, cell_h)
         else:
             cell = _fit_qr_in_cell(_make_qr_image(payload), cell_w, cell_h)
         slot.paste(cell, (0, i * cell_h))
@@ -123,8 +150,10 @@ def slot_roi_local(capacity: int) -> List[int]:
 
 
 def generate_all(out_dir: Path) -> dict:
-    """Write F1/F2/F3.png, board.png, and return board slots config."""
+    """Write F1/F2/F3.png, board.png, hash fixtures, and return configs."""
     out_dir.mkdir(parents=True, exist_ok=True)
+    refs_dir = out_dir / "refs"
+    refs_dir.mkdir(parents=True, exist_ok=True)
 
     f1_payloads: List[Optional[str]] = ["SKU-ALPHA"] * 10
     f2_payloads: List[Optional[str]] = [
@@ -204,14 +233,33 @@ def generate_all(out_dir: Path) -> dict:
         "capacity": 4,
     }
 
+    # Phase 4 ImageHash fallback: visual label cell (no QR) + empty
+    visual = _make_visual_sku_label()
+    visual.save(refs_dir / "SKU-VISUAL.png")
+    # Also keep a QR-based ref for negative tests (should not match noise)
+    _fit_qr_in_cell(_make_qr_image("SKU-ALPHA"), CELL_W, CELL_H).save(
+        refs_dir / "SKU-ALPHA.png"
+    )
+
+    hash_payloads: List[Optional[str]] = ["__VISUAL__", None, None, None]
+    hash_stack = render_slot_stack(hash_payloads)
+    hash_img, hash_roi = pad_slot(hash_stack)
+    hash_img.save(out_dir / "F_hash_fallback.png")
+    single_configs["F_hash_fallback"] = {
+        "id": "F_hash_fallback",
+        "roi": hash_roi,
+        "capacity": 4,
+    }
+
     return {
         "board_slots": board_slots,
         "single_slots": single_configs,
+        "refs_dir": str(refs_dir),
     }
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Generate Phase 0 fixtures F1/F2/F3")
+    parser = argparse.ArgumentParser(description="Generate Phase 0/4 fixtures")
     parser.add_argument(
         "--out",
         type=Path,
@@ -230,26 +278,42 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Wrote fixtures to {args.out.resolve()}")
     for s in result["board_slots"]:
         print(f"  board {s['id']}: roi={s['roi']} capacity={s['capacity']}")
+    print(f"  refs → {result['refs_dir']}")
 
     config_path = args.write_config
     if config_path is None:
-        # Default: project config/slots.example.json if cwd looks like project root
         guess = Path("config/slots.example.json")
         config_path = guess if guess.parent.is_dir() else None
 
     if config_path is not None:
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        runtime = {"slots": result["board_slots"]}
+        runtime = {
+            "hash_threshold": 12,
+            "fill_direction": "top_to_bottom",
+            "reference_images_dir": "../fixtures/refs",
+            "enable_hash_fallback": True,
+            "slots": result["board_slots"],
+        }
+
         with config_path.open("w", encoding="utf-8") as f:
             json.dump(runtime, f, indent=2)
             f.write("\n")
         print(f"Wrote board config to {config_path.resolve()}")
 
-        # Per-fixture single-slot configs for analyzing F1.png / F2.png / F3.png
         for name, slot in result["single_slots"].items():
             single_path = config_path.parent / f"{name}.json"
+            single_cfg: dict = {"slots": [slot]}
+            if name in ("F_hash_fallback", "F_unreadable"):
+                single_cfg.update(
+                    {
+                        "hash_threshold": 12,
+                        "fill_direction": "top_to_bottom",
+                        "reference_images_dir": "../fixtures/refs",
+                        "enable_hash_fallback": True,
+                    }
+                )
             with single_path.open("w", encoding="utf-8") as f:
-                json.dump({"slots": [slot]}, f, indent=2)
+                json.dump(single_cfg, f, indent=2)
                 f.write("\n")
             print(f"Wrote single-slot config to {single_path.resolve()}")
 
