@@ -14,6 +14,7 @@ OFFLINE_MODULES = [
     "slot_pipeline.py",
     "image_hash_match.py",
     "store.py",
+    "availability.py",
     "cli.py",
 ]
 

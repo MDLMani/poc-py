@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "warehouse-slots"
-version = "0.4.0"
-description = "Offline warehouse slot QR scanner (Phases 1–4 field hardening)"
+version = "0.5.0"
+description = "Offline warehouse slot QR scanner (Phases 1–4 + image library / availability)"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
