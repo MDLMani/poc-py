@@ -33,9 +33,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Local artifacts (regenerate with generate_fixtures)
-fixtures/*.png
-# Keep directory via .gitkeep if desired; PNGs are generated offline
+# Fixture PNGs are committed for POC v1 so clone works without regenerate
+# (still safe to regenerate with generate_fixtures)
 
 # Env / secrets (none expected for Phase 0)
 .env
