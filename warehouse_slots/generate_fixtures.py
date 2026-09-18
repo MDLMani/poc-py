@@ -1,0 +1,218 @@
+"""Generate high-contrast fixture images F1/F2/F3 for Phase 0 acceptance.
+
+Offline-only after dependencies are installed. Uses qrcode[pil] + Pillow.
+OpenCV QRCodeDetector needs large modules and quiet zones — we render
+oversized QRs on a pure-white canvas.
+
+Layout (each fixture image is independent; same local ROI origin):
+  - F1.png / F2.png / F3.png — one slot each
+  - board.png — F1 | F2 | F3 side-by-side (matches config/slots.example.json)
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import List, Optional, Sequence, Tuple
+
+import qrcode
+from PIL import Image
+
+
+# Geometry tuned for reliable OpenCV decode
+CELL_W = 240
+CELL_H = 240
+QR_BOX_SIZE = 8  # pixels per QR module
+QR_BORDER = 2  # quiet-zone modules
+SLOT_ORIGIN_X = 40
+SLOT_ORIGIN_Y = 40
+GAP = 40  # horizontal gap between slots on the board
+CANVAS_PAD_RIGHT = 40
+CANVAS_PAD_BOTTOM = 40
+
+
+def _make_qr_image(payload: str) -> Image.Image:
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=QR_BOX_SIZE,
+        border=QR_BORDER,
+    )
+    qr.add_data(payload)
+    qr.make(fit=True)
+    return qr.make_image(fill_color="black", back_color="white").convert("RGB")
+
+
+def _fit_qr_in_cell(qr_img: Image.Image, cell_w: int, cell_h: int) -> Image.Image:
+    """Center QR in a white cell; scale down only if larger than cell."""
+    cell = Image.new("RGB", (cell_w, cell_h), (255, 255, 255))
+    qw, qh = qr_img.size
+    max_w, max_h = cell_w - 8, cell_h - 8
+    if qw > max_w or qh > max_h:
+        scale = min(max_w / qw, max_h / qh)
+        new_size = (max(1, int(qw * scale)), max(1, int(qh * scale)))
+        qr_img = qr_img.resize(new_size, Image.Resampling.NEAREST)
+        qw, qh = qr_img.size
+    x = (cell_w - qw) // 2
+    y = (cell_h - qh) // 2
+    cell.paste(qr_img, (x, y))
+    return cell
+
+
+def render_slot_stack(
+    payloads: Sequence[Optional[str]],
+    cell_w: int = CELL_W,
+    cell_h: int = CELL_H,
+) -> Image.Image:
+    """Return just the slot rectangle (capacity × cell), no outer padding."""
+    capacity = len(payloads)
+    slot = Image.new("RGB", (cell_w, cell_h * capacity), (255, 255, 255))
+    for i, payload in enumerate(payloads):
+        if payload is None:
+            cell = Image.new("RGB", (cell_w, cell_h), (255, 255, 255))
+        else:
+            cell = _fit_qr_in_cell(_make_qr_image(payload), cell_w, cell_h)
+        slot.paste(cell, (0, i * cell_h))
+    return slot
+
+
+def pad_slot(slot: Image.Image) -> Tuple[Image.Image, List[int]]:
+    """Place slot at (SLOT_ORIGIN_X, SLOT_ORIGIN_Y) on a white canvas."""
+    canvas_w = SLOT_ORIGIN_X + slot.size[0] + CANVAS_PAD_RIGHT
+    canvas_h = SLOT_ORIGIN_Y + slot.size[1] + CANVAS_PAD_BOTTOM
+    canvas = Image.new("RGB", (canvas_w, canvas_h), (255, 255, 255))
+    canvas.paste(slot, (SLOT_ORIGIN_X, SLOT_ORIGIN_Y))
+    roi = [SLOT_ORIGIN_X, SLOT_ORIGIN_Y, slot.size[0], slot.size[1]]
+    return canvas, roi
+
+
+def slot_roi_local(capacity: int) -> List[int]:
+    return [SLOT_ORIGIN_X, SLOT_ORIGIN_Y, CELL_W, CELL_H * capacity]
+
+
+def generate_all(out_dir: Path) -> dict:
+    """Write F1/F2/F3.png, board.png, and return board slots config."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    f1_payloads: List[Optional[str]] = ["SKU-ALPHA"] * 10
+    f2_payloads: List[Optional[str]] = [
+        "SKU-A",
+        "SKU-A",
+        "SKU-B",
+        "SKU-B",
+        "SKU-C",
+        "SKU-C",
+    ]
+    f3_payloads: List[Optional[str]] = [
+        "SKU-X",
+        "SKU-Y",
+        "SKU-Z",
+        None,
+        None,
+        None,
+        None,
+        None,
+    ]
+
+    stacks = {
+        "F1": render_slot_stack(f1_payloads),
+        "F2": render_slot_stack(f2_payloads),
+        "F3": render_slot_stack(f3_payloads),
+    }
+
+    # Individual fixture images (single slot each)
+    single_configs = {}
+    for name, stack in stacks.items():
+        img, roi = pad_slot(stack)
+        img.save(out_dir / f"{name}.png")
+        single_configs[name] = {
+            "id": name,
+            "roi": roi,
+            "capacity": stack.size[1] // CELL_H,
+        }
+
+    # Combined board: F1 | F2 | F3 left-to-right
+    max_h = max(s.size[1] for s in stacks.values())
+    board_w = (
+        SLOT_ORIGIN_X
+        + stacks["F1"].size[0]
+        + GAP
+        + stacks["F2"].size[0]
+        + GAP
+        + stacks["F3"].size[0]
+        + CANVAS_PAD_RIGHT
+    )
+    board_h = SLOT_ORIGIN_Y + max_h + CANVAS_PAD_BOTTOM
+    board = Image.new("RGB", (board_w, board_h), (255, 255, 255))
+
+    x = SLOT_ORIGIN_X
+    board_slots = []
+    for name in ("F1", "F2", "F3"):
+        stack = stacks[name]
+        board.paste(stack, (x, SLOT_ORIGIN_Y))
+        board_slots.append(
+            {
+                "id": name,
+                "roi": [x, SLOT_ORIGIN_Y, stack.size[0], stack.size[1]],
+                "capacity": stack.size[1] // CELL_H,
+            }
+        )
+        x += stack.size[0] + GAP
+
+    board.save(out_dir / "board.png")
+
+    return {
+        "board_slots": board_slots,
+        "single_slots": single_configs,
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Generate Phase 0 fixtures F1/F2/F3")
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path("fixtures"),
+        help="Output directory for PNGs (default: fixtures/)",
+    )
+    parser.add_argument(
+        "--write-config",
+        type=Path,
+        default=None,
+        help="Write board slots JSON here (default: also writes singles next to it)",
+    )
+    args = parser.parse_args(argv)
+
+    result = generate_all(args.out)
+    print(f"Wrote fixtures to {args.out.resolve()}")
+    for s in result["board_slots"]:
+        print(f"  board {s['id']}: roi={s['roi']} capacity={s['capacity']}")
+
+    config_path = args.write_config
+    if config_path is None:
+        # Default: project config/slots.example.json if cwd looks like project root
+        guess = Path("config/slots.example.json")
+        config_path = guess if guess.parent.is_dir() else None
+
+    if config_path is not None:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        runtime = {"slots": result["board_slots"]}
+        with config_path.open("w", encoding="utf-8") as f:
+            json.dump(runtime, f, indent=2)
+            f.write("\n")
+        print(f"Wrote board config to {config_path.resolve()}")
+
+        # Per-fixture single-slot configs for analyzing F1.png / F2.png / F3.png
+        for name, slot in result["single_slots"].items():
+            single_path = config_path.parent / f"{name}.json"
+            with single_path.open("w", encoding="utf-8") as f:
+                json.dump({"slots": [slot]}, f, indent=2)
+                f.write("\n")
+            print(f"Wrote single-slot config to {single_path.resolve()}")
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

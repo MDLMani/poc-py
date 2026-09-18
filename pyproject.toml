@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "warehouse-slots"
+version = "0.1.0"
+description = "Offline warehouse slot QR scanner (Phase 0)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "opencv-python>=4.8",
+  "numpy>=1.24",
+  "Pillow>=10.0",
+  "qrcode[pil]>=7.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[project.scripts]
+warehouse-slots = "warehouse_slots.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["warehouse_slots*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
