@@ -1,3 +1,3 @@
-"""Warehouse slot QR scanner — Phase 0 (offline, cell-banded OpenCV decode)."""
+"""Warehouse slot QR scanner — Phases 1–3 (offline MVP)."""
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"

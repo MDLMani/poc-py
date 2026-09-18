@@ -40,3 +40,7 @@ fixtures/*.png
 # Env / secrets (none expected for Phase 0)
 .env
 .env.*
+
+# Phase 2/3 local data
+data/
+*.db
