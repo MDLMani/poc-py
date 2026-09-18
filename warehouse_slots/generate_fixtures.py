@@ -60,6 +60,35 @@ def _fit_qr_in_cell(qr_img: Image.Image, cell_w: int, cell_h: int) -> Image.Imag
     return cell
 
 
+
+def _make_noise_cell(cell_w: int, cell_h: int) -> Image.Image:
+    """Dark blotch that is occupied but not a valid QR → UNREADABLE."""
+    import random
+
+    cell = Image.new("RGB", (cell_w, cell_h), (255, 255, 255))
+    pixels = cell.load()
+    rng = random.Random(42)
+    # Scattered dark rectangles — enough to trip occupancy, not a QR
+    for _ in range(40):
+        x0 = rng.randint(10, cell_w - 40)
+        y0 = rng.randint(10, cell_h - 40)
+        bw = rng.randint(8, 30)
+        bh = rng.randint(8, 30)
+        for y in range(y0, min(cell_h - 1, y0 + bh)):
+            for x in range(x0, min(cell_w - 1, x0 + bw)):
+                pixels[x, y] = (20, 20, 20)
+    # Border frame to look "present"
+    for x in range(20, cell_w - 20):
+        for t in range(4):
+            pixels[x, 20 + t] = (0, 0, 0)
+            pixels[x, cell_h - 24 + t] = (0, 0, 0)
+    for y in range(20, cell_h - 20):
+        for t in range(4):
+            pixels[20 + t, y] = (0, 0, 0)
+            pixels[cell_w - 24 + t, y] = (0, 0, 0)
+    return cell
+
+
 def render_slot_stack(
     payloads: Sequence[Optional[str]],
     cell_w: int = CELL_W,
@@ -71,6 +100,8 @@ def render_slot_stack(
     for i, payload in enumerate(payloads):
         if payload is None:
             cell = Image.new("RGB", (cell_w, cell_h), (255, 255, 255))
+        elif payload == "__NOISE__":
+            cell = _make_noise_cell(cell_w, cell_h)
         else:
             cell = _fit_qr_in_cell(_make_qr_image(payload), cell_w, cell_h)
         slot.paste(cell, (0, i * cell_h))
@@ -161,6 +192,17 @@ def generate_all(out_dir: Path) -> dict:
         x += stack.size[0] + GAP
 
     board.save(out_dir / "board.png")
+
+    # UNREADABLE fixture: 1 valid QR + 1 noise blotch + 2 empty (capacity 4)
+    ur_payloads: List[Optional[str]] = ["SKU-UR", "__NOISE__", None, None]
+    ur_stack = render_slot_stack(ur_payloads)
+    ur_img, ur_roi = pad_slot(ur_stack)
+    ur_img.save(out_dir / "F_unreadable.png")
+    single_configs["F_unreadable"] = {
+        "id": "F_unreadable",
+        "roi": ur_roi,
+        "capacity": 4,
+    }
 
     return {
         "board_slots": board_slots,
