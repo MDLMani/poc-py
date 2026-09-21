@@ -64,7 +64,8 @@ def test_record_in_out_with_scan(store: WarehouseStore, board_scan, tmp_path: Pa
     assert ev_in.image_path == str(img_path)
     lines = store.event_sku_lines(ev_in.id)
     sku_map = {x["sku_id"]: x["qty"] for x in lines}
-    assert sku_map["SKU-ALPHA"] == 10
+    assert sku_map["SKU-ALPHA"] == 12  # F1×10 + F4×2
+    assert sku_map["SKU-COMP"] == 4
     assert sku_map["SKU-A"] == 2
     assert sku_map["SKU-X"] == 1
 
@@ -73,6 +74,13 @@ def test_record_in_out_with_scan(store: WarehouseStore, board_scan, tmp_path: Pa
     events = store.list_events()
     assert len(events) == 2
     assert {e.direction for e in events} == {"IN", "OUT"}
+
+    hist = store.sku_history("SKU-ALPHA")
+    assert len(hist) >= 2
+    assert hist[0]["direction"] == "OUT"
+    assert hist[0]["qty"] == 12
+    assert hist[1]["direction"] == "IN"
+    assert hist[1]["qty"] == 12
 
 
 def test_invalid_direction(store: WarehouseStore, tmp_path: Path):

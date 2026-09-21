@@ -25,7 +25,7 @@ def test_ui_smoke_headless(tmp_path: Path):
         image_path=FIXTURES / "board.png",
         db_path=tmp_path / "ui_smoke.db",
     )
-    assert out["slots"] == 3
+    assert out["slots"] == 5
     assert out["event_in"] >= 1
     assert out["event_out"] >= 1
     assert Path(out["snap"]).is_file()

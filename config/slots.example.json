@@ -1,8 +1,4 @@
 {
-  "hash_threshold": 12,
-  "fill_direction": "top_to_bottom",
-  "reference_images_dir": "../fixtures/refs",
-  "enable_hash_fallback": true,
   "slots": [
     {
       "id": "F1",
@@ -33,6 +29,26 @@
         1920
       ],
       "capacity": 8
+    },
+    {
+      "id": "F4",
+      "roi": [
+        880,
+        40,
+        240,
+        1440
+      ],
+      "capacity": 6
+    },
+    {
+      "id": "F5",
+      "roi": [
+        1160,
+        40,
+        240,
+        1440
+      ],
+      "capacity": 6
     }
   ]
 }

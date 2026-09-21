@@ -12,7 +12,6 @@
     }
   ],
   "hash_threshold": 12,
-  "fill_direction": "top_to_bottom",
-  "reference_images_dir": "../fixtures/refs",
+  "reference_images_dir": "/home/mdlmani/Downloads/poc-py-1.0.0/fixtures/refs",
   "enable_hash_fallback": true
 }

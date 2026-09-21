@@ -209,6 +209,7 @@ class WarehouseStore:
             ("SKU-X", "SKU X", "F3 fixture"),
             ("SKU-Y", "SKU Y", "F3 fixture"),
             ("SKU-Z", "SKU Z", "F3 fixture"),
+            ("SKU-COMP", "Companion kit", "F4 companion product"),
         ]
         added = 0
         for sku_id, name, desc in demo:
@@ -333,6 +334,34 @@ class WarehouseStore:
             ).fetchall()
         return [{"sku_id": r["sku_id"], "qty": r["qty"]} for r in rows]
 
+    def sku_history(self, sku_id: str, limit: int = 30) -> List[Dict[str, Any]]:
+        """Recent IN/OUT lines for one sku_id (newest first)."""
+        sku_id = (sku_id or "").strip()
+        if not sku_id:
+            return []
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT e.id AS event_id, e.direction, e.created_at, e.note,
+                       es.qty
+                FROM event_skus es
+                JOIN events e ON e.id = es.event_id
+                WHERE es.sku_id = ?
+                ORDER BY e.id DESC
+                LIMIT ?
+                """,
+                (sku_id, int(limit)),
+            ).fetchall()
+        return [
+            {
+                "event_id": int(r["event_id"]),
+                "direction": r["direction"],
+                "qty": int(r["qty"]),
+                "created_at": r["created_at"],
+                "note": r["note"] or "",
+            }
+            for r in rows
+        ]
 
     # --- Image library ---------------------------------------------------
 

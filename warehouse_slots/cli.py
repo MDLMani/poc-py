@@ -290,8 +290,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Slots JSON for overlay + analysis",
     )
     p_ui.add_argument("--db", default=None)
-    p_ui.add_argument("--image", default=None, help="Still image mode (skip camera)")
-    p_ui.add_argument("--camera", type=int, default=0, help="Camera index for live mode")
+    p_ui.add_argument("--image", default=None, help="Still image to open on launch")
+    p_ui.add_argument(
+        "--camera",
+        type=int,
+        default=0,
+        help=argparse.SUPPRESS,  # removed from UI; kept so old scripts don't break
+    )
     _add_phase4_knobs(p_ui)
     p_ui.set_defaults(func=cmd_ui)
 

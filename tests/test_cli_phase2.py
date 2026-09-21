@@ -59,9 +59,11 @@ def test_cli_analyze_board(capsys, tmp_path):
     )
     assert code == 0
     out = json.loads(capsys.readouterr().out)
-    assert len(out["slots"]) == 3
+    assert len(out["slots"]) == 5
     by_id = {s["slot_id"]: s for s in out["slots"]}
     assert by_id["F1"]["counts"] == {"SKU-ALPHA": 10}
+    assert by_id["F4"]["counts"] == {"SKU-ALPHA": 2, "SKU-COMP": 4}
+    assert by_id["F5"]["empty"] == 6
 
 
 def test_cli_confirm_in_out(capsys, tmp_path):

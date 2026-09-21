@@ -87,6 +87,24 @@ def test_f3_three_filled_five_empty():
     assert dict(result.counts) == {"SKU-X": 1, "SKU-Y": 1, "SKU-Z": 1}
 
 
+def test_f4_companion_products():
+    result = _analyze_single("F4")
+    assert result.capacity == 6
+    assert result.filled == 6
+    assert result.empty == 0
+    assert result.unreadable == 0
+    assert dict(result.counts) == {"SKU-ALPHA": 2, "SKU-COMP": 4}
+
+
+def test_f5_empty_column():
+    result = _analyze_single("F5")
+    assert result.capacity == 6
+    assert result.filled == 0
+    assert result.empty == 6
+    assert result.unreadable == 0
+    assert dict(result.counts) == {}
+
+
 def test_board_all_slots():
     img = cv2.imread(str(FIXTURES / "board.png"), cv2.IMREAD_COLOR)
     assert img is not None
@@ -103,3 +121,10 @@ def test_board_all_slots():
     assert by_id["F3"]["counts"] == {"SKU-X": 1, "SKU-Y": 1, "SKU-Z": 1}
     assert by_id["F3"]["empty"] == 5
     assert by_id["F3"]["unreadable"] == 0
+
+    assert by_id["F4"]["counts"] == {"SKU-ALPHA": 2, "SKU-COMP": 4}
+    assert by_id["F4"]["empty"] == 0
+
+    assert by_id["F5"]["filled"] == 0
+    assert by_id["F5"]["empty"] == 6
+    assert by_id["F5"]["counts"] == {}

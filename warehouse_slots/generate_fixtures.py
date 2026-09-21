@@ -1,12 +1,14 @@
-"""Generate high-contrast fixture images F1/F2/F3 for Phase 0+ acceptance.
+"""Generate high-contrast fixture images F1–F5 for Phase 0+ acceptance.
 
 Offline-only after dependencies are installed. Uses qrcode[pil] + Pillow.
 OpenCV QRCodeDetector needs large modules and quiet zones — we render
 oversized QRs on a pure-white canvas.
 
 Layout (each fixture image is independent; same local ROI origin):
-  - F1.png / F2.png / F3.png — one slot each
-  - board.png — F1 | F2 | F3 side-by-side (matches config/slots.example.json)
+  - F1.png / F2.png / F3.png / F4.png / F5.png — one slot each
+  - board.png — F1 | F2 | F3 | F4 | F5 side-by-side (slots.example.json)
+  - F4 — companion products (SKU-COMP next to main SKU-ALPHA)
+  - F5 — empty column (no product in any cell)
   - F_unreadable.png — QR + noise blotch + empties
   - F_hash_fallback.png — visual label (no QR) matched via ImageHash refs
   - refs/SKU-VISUAL.png — local SKU reference for hash fallback demos
@@ -114,6 +116,19 @@ def _make_visual_sku_label(cell_w: int = CELL_W, cell_h: int = CELL_H) -> Image.
     return cell
 
 
+def _make_empty_cell(cell_w: int = CELL_W, cell_h: int = CELL_H) -> Image.Image:
+    """Visually marked empty cell that still counts as EMPTY (near-white).
+
+    Light gray frame only — stays above the occupied threshold (no dark ink).
+    """
+    cell = Image.new("RGB", (cell_w, cell_h), (255, 255, 255))
+    draw = ImageDraw.Draw(cell)
+    # Soft frame (all channels >= 210 so QR occupancy heuristic stays EMPTY)
+    draw.rectangle([4, 4, cell_w - 5, cell_h - 5], outline=(220, 220, 220), width=2)
+    draw.rectangle([10, 10, cell_w - 11, cell_h - 11], outline=(235, 235, 235), width=1)
+    return cell
+
+
 def render_slot_stack(
     payloads: Sequence[Optional[str]],
     cell_w: int = CELL_W,
@@ -124,7 +139,7 @@ def render_slot_stack(
     slot = Image.new("RGB", (cell_w, cell_h * capacity), (255, 255, 255))
     for i, payload in enumerate(payloads):
         if payload is None:
-            cell = Image.new("RGB", (cell_w, cell_h), (255, 255, 255))
+            cell = _make_empty_cell(cell_w, cell_h)
         elif payload == "__NOISE__":
             cell = _make_noise_cell(cell_w, cell_h)
         elif payload == "__VISUAL__":
@@ -150,7 +165,7 @@ def slot_roi_local(capacity: int) -> List[int]:
 
 
 def generate_all(out_dir: Path) -> dict:
-    """Write F1/F2/F3.png, board.png, hash fixtures, and return configs."""
+    """Write F1–F5.png, board.png, hash fixtures, and return configs."""
     out_dir.mkdir(parents=True, exist_ok=True)
     refs_dir = out_dir / "refs"
     refs_dir.mkdir(parents=True, exist_ok=True)
@@ -174,11 +189,24 @@ def generate_all(out_dir: Path) -> dict:
         None,
         None,
     ]
+    # Companion products paired with a main SKU (ALPHA + COMP alternating).
+    f4_payloads: List[Optional[str]] = [
+        "SKU-ALPHA",
+        "SKU-COMP",
+        "SKU-ALPHA",
+        "SKU-COMP",
+        "SKU-COMP",
+        "SKU-COMP",
+    ]
+    # Empty column — capacity reserved, no products.
+    f5_payloads: List[Optional[str]] = [None, None, None, None, None, None]
 
     stacks = {
         "F1": render_slot_stack(f1_payloads),
         "F2": render_slot_stack(f2_payloads),
         "F3": render_slot_stack(f3_payloads),
+        "F4": render_slot_stack(f4_payloads),
+        "F5": render_slot_stack(f5_payloads),
     }
 
     # Individual fixture images (single slot each)
@@ -192,25 +220,33 @@ def generate_all(out_dir: Path) -> dict:
             "capacity": stack.size[1] // CELL_H,
         }
 
-    # Combined board: F1 | F2 | F3 left-to-right
+    # Combined board: F1 | F2 | F3 | F4 | F5 left-to-right
     max_h = max(s.size[1] for s in stacks.values())
+    board_names = ("F1", "F2", "F3", "F4", "F5")
     board_w = (
         SLOT_ORIGIN_X
-        + stacks["F1"].size[0]
-        + GAP
-        + stacks["F2"].size[0]
-        + GAP
-        + stacks["F3"].size[0]
+        + sum(stacks[n].size[0] for n in board_names)
+        + GAP * (len(board_names) - 1)
         + CANVAS_PAD_RIGHT
     )
     board_h = SLOT_ORIGIN_Y + max_h + CANVAS_PAD_BOTTOM
     board = Image.new("RGB", (board_w, board_h), (255, 255, 255))
+    draw = ImageDraw.Draw(board)
+    # Short labels so the 5 columns are obvious in the PNG preview.
+    board_labels = {
+        "F1": "F1",
+        "F2": "F2",
+        "F3": "F3",
+        "F4": "F4 companion",
+        "F5": "F5 empty",
+    }
 
     x = SLOT_ORIGIN_X
     board_slots = []
-    for name in ("F1", "F2", "F3"):
+    for name in board_names:
         stack = stacks[name]
         board.paste(stack, (x, SLOT_ORIGIN_Y))
+        draw.text((x, 8), board_labels[name], fill=(120, 120, 120))
         board_slots.append(
             {
                 "id": name,
