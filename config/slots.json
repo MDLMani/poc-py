@@ -1,0 +1,128 @@
+{
+  "hash_threshold": 12,
+  "fill_direction": "top_to_bottom",
+  "enable_hash_fallback": true,
+  "reference_images_dir": "refs",
+  "slots": [
+    {
+      "id": "F1",
+      "roi": [
+        40,
+        40,
+        240,
+        2400
+      ],
+      "capacity": 10,
+      "expected_products": [
+        "SKU-ALPHA",
+        "SKU-ALPHA",
+        "SKU-ALPHA",
+        "SKU-ALPHA",
+        "SKU-ALPHA",
+        "SKU-ALPHA",
+        "SKU-ALPHA",
+        "SKU-ALPHA",
+        "SKU-ALPHA",
+        "SKU-ALPHA"
+      ]
+    },
+    {
+      "id": "F2",
+      "roi": [
+        320,
+        40,
+        240,
+        1440
+      ],
+      "capacity": 6,
+      "expected_products": [
+        "SKU-A",
+        "SKU-A",
+        "SKU-B",
+        "SKU-B",
+        "SKU-C",
+        "SKU-C"
+      ]
+    },
+    {
+      "id": "F3",
+      "roi": [
+        600,
+        40,
+        240,
+        1920
+      ],
+      "capacity": 8,
+      "expected_products": [
+        "SKU-X",
+        "SKU-X",
+        "SKU-Y",
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": "F4",
+      "roi": [
+        880,
+        40,
+        240,
+        1440
+      ],
+      "capacity": 6,
+      "expected_products": [
+        "SKU-COMP",
+        "SKU-COMP",
+        "SKU-COMP",
+        "SKU-COMP",
+        "SKU-COMP",
+        "SKU-COMP"
+      ]
+    },
+    {
+      "id": "F5",
+      "roi": [
+        1160,
+        40,
+        240,
+        1440
+      ],
+      "capacity": 6,
+      "expected_products": [
+        null,
+        null,
+        "SKU-B",
+        "SKU-B",
+        null,
+        null
+      ]
+    },
+    {
+      "id": "MDL",
+      "roi": [
+        1440,
+        40,
+        240,
+        1440
+      ],
+      "capacity": 12,
+      "expected_products": [
+        "SKU-A",
+        "SKU-B",
+        "SKU-ALPHA",
+        "SKU-ALPHA",
+        "SKU-ALPHA",
+        "SKU-C",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    }
+  ]
+}

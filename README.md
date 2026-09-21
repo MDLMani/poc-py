@@ -26,21 +26,29 @@ availability checks (image/QR vs on-hand stock).
 ```
 poc-py/
 ├── warehouse_slots/
-│   ├── config.py             # slots JSON + Phase 4 knobs
+│   ├── config.py             # slots JSON + expected products + Phase 4 knobs
 │   ├── qr_detect.py          # hardened OpenCV QRCodeDetector
 │   ├── image_hash_match.py   # ImageHash SKU reference fallback
 │   ├── slot_pipeline.py      # cell-band + FILLED/EMPTY/UNREADABLE
 │   ├── store.py              # SQLite SKU catalog + IN/OUT + image library
 │   ├── availability.py       # Check image/QR counts vs on-hand stock
-│   ├── local_api.py          # optional 127.0.0.1 HTTP API
-│   ├── ui_app.py             # CustomTkinter desktop UI
+│   ├── local_api.py          # offline 127.0.0.1 REST API
+│   ├── ui_app.py             # Electron launcher + headless smoke helpers
 │   ├── cli.py / __main__.py
 │   └── generate_fixtures.py  # F1/F2/F3/board + unreadable + hash fixtures
-├── config/                   # slots JSON (board + singles)
+├── electron/                 # Modern Electron desktop application
+│   ├── main.js               # Electron main process (auto-spawns Python API)
+│   ├── preload.js            # Secure contextBridge IPC
+│   └── renderer/             # Frontend UI (HTML, CSS, JS)
+│       ├── index.html        # Clean 4-tab workflow interface
+│       ├── styles.css        # Responsive dark theme
+│       └── app.js            # Interactive flow manager & visual inspectors
+├── config/                   # slots JSON (board + custom layouts)
 ├── fixtures/                 # generated PNGs + refs/ (regenerate offline)
 ├── packaging/                # PyInstaller specs + Windows build script
 ├── data/                     # local DB + snapshots (gitignored)
 ├── tests/
+├── package.json              # Node / Electron configuration
 ├── pyproject.toml
 └── README.md
 ```
@@ -132,25 +140,37 @@ python -m warehouse_slots serve --host 127.0.0.1 --port 8765
 
 ---
 
-## Phase 3 — Desktop UI (CustomTkinter)
+## Phase 3 — Electron Desktop UI
+
+Launch the modern Electron application:
 
 ```bash
-# Still-image mode (recommended for demos / no camera)
-python -m warehouse_slots ui --config config/slots.example.json --image fixtures/board.png
+# Start directly with npm
+npm start
 
-# Live camera (falls back with status if camera missing)
-python -m warehouse_slots ui --config config/slots.example.json --camera 0
+# Or launch via python CLI
+python -m warehouse_slots ui
 ```
 
-UI features:
+### Transparent 4-Step Workflows (No Complex Flows)
 
-- Live camera and/or still image load
-- Slot ROI overlay + cell-band guides
-- Per-slot results table (filled / empty / unreadable / counts)
-- Snapshot + **Confirm IN** / **Confirm OUT** → Phase 2 SQLite store under `data/`
-- Works network-unplugged
+1. **Columns & Slots Configuration**:
+   - Visual board rendering physical vertical columns side-by-side.
+   - **Add Column**: Click `+ Add Column`, input name/ID, ROI coordinates, and slot capacity.
+   - **Configure Slots & Assign Products**: Select expected product SKU for each slot cell (e.g. `Slot 0` &rarr; `SKU-ALPHA`) or leave empty. Click `Save Layout`.
+2. **Scan & Visual Flow Analysis**:
+   - Choose a source capture (quick fixtures like `board.png`, `F1.png`, etc., or browse any local image).
+   - Click `Run Slot Analysis` to scan with OpenCV + ImageHash fallback.
+   - **Visual Overlay**: Colored bounding boxes over the warehouse image (🟢 Matches, 🟡 Empty, 🔴 Mismatches, 🟠 Unreadable).
+   - **Detailed Flow Inspector**: Click any slot to view the actual cropped cell thumbnail, expected SKU vs detected QR payload, detection method, and flow verdict.
+3. **Inbound & Outbound Confirmations**:
+   - 1-click **Confirm Inbound (IN)** or **Confirm Outbound (OUT)** to update inventory.
+   - Audit trail of recorded events with timestamp, direction, and SKU quantities.
+4. **Product Catalog & Stock Status**:
+   - Register new SKUs with ID, name, description.
+   - View real-time on-hand stock counts calculated from recorded movements.
 
-### Headless smoke (CI / no display)
+### Headless smoke test
 
 ```bash
 pytest tests/test_ui_smoke.py -q
@@ -158,9 +178,39 @@ pytest tests/test_ui_smoke.py -q
 
 ### Phase 3 acceptance
 
-- [x] CustomTkinter UI with overlay + results table
-- [x] Confirm IN/OUT wired to Phase 2 store
-- [x] Offline; README launch docs; smoke test
+- [x] Modern Electron desktop UI replacing Python CustomTkinter
+- [x] Clear, detailed flows for adding columns, configuring slots, and assigning products in slots
+- [x] Real-time visual overlay and slot crop flow inspector
+- [x] Inbound/Outbound confirmations wired to SQLite store
+- [x] Offline; README launch docs; full test suite passing
+
+---
+
+## Live rack MVP (uniform + irregular)
+
+Enter **expected product IDs on the same F1/F2/… slot cells** as the preview grid, then verify in the results table (`product_id` + `check` columns).
+
+```bash
+python -m warehouse_slots ui --config config/slots.example.json --image fixtures/board.png
+```
+
+**UI flow**
+
+1. Open image / load board  
+2. **Build expected from slots** → edit `slot,cell,product_id` (e.g. `F1,0,SKU-ALPHA`)  
+3. **Verify (analyze + check products)** → table shows status, scanned `product_id`, expected, PASS/FAIL  
+
+Preview grid stays the **slot columns** (F1–F5). A separate 2D rack overlay is not applied on top of the board.
+
+Optional CLI for standalone 2D crate JSON (crate photos):
+
+```bash
+python -m warehouse_slots rack-verify \
+  --image path/to/crate.jpg \
+  --rack config/racks/example_uniform_4x5.json
+```
+
+**Live mode** checkbox uses `data/warehouse_live.db` and skips demo SKU seeding.
 
 ---
 

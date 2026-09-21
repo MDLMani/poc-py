@@ -44,6 +44,7 @@ Thumbs.db
 data/
 *.db
 
-# Phase 4 packaging artifacts
+# Node / Electron
+node_modules/
 offline-wheels/
 *.spec.bak

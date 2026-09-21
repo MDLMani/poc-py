@@ -1,0 +1,117 @@
+{
+  "rack_id": "EXAMPLE-4x5",
+  "store_type": "uniform_4x5",
+  "outer_roi": [
+    40,
+    40,
+    1200,
+    960
+  ],
+  "layout": {
+    "mode": "uniform",
+    "rows": 4,
+    "cols": 5
+  },
+  "cells": [
+    {
+      "row": 0,
+      "col": 0,
+      "expected_product_id": "SKU-X0"
+    },
+    {
+      "row": 0,
+      "col": 1,
+      "expected_product_id": "SKU-X1"
+    },
+    {
+      "row": 0,
+      "col": 2,
+      "expected_product_id": "SKU-X2"
+    },
+    {
+      "row": 0,
+      "col": 3,
+      "expected_product_id": "SKU-X3"
+    },
+    {
+      "row": 0,
+      "col": 4,
+      "expected_product_id": "SKU-X4"
+    },
+    {
+      "row": 1,
+      "col": 0,
+      "expected_product_id": null
+    },
+    {
+      "row": 1,
+      "col": 1,
+      "expected_product_id": null
+    },
+    {
+      "row": 1,
+      "col": 2,
+      "expected_product_id": null
+    },
+    {
+      "row": 1,
+      "col": 3,
+      "expected_product_id": null
+    },
+    {
+      "row": 1,
+      "col": 4,
+      "expected_product_id": null
+    },
+    {
+      "row": 2,
+      "col": 0,
+      "expected_product_id": null
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "expected_product_id": null
+    },
+    {
+      "row": 2,
+      "col": 2,
+      "expected_product_id": null
+    },
+    {
+      "row": 2,
+      "col": 3,
+      "expected_product_id": null
+    },
+    {
+      "row": 2,
+      "col": 4,
+      "expected_product_id": null
+    },
+    {
+      "row": 3,
+      "col": 0,
+      "expected_product_id": null
+    },
+    {
+      "row": 3,
+      "col": 1,
+      "expected_product_id": null
+    },
+    {
+      "row": 3,
+      "col": 2,
+      "expected_product_id": null
+    },
+    {
+      "row": 3,
+      "col": 3,
+      "expected_product_id": null
+    },
+    {
+      "row": 3,
+      "col": 4,
+      "expected_product_id": null
+    }
+  ]
+}

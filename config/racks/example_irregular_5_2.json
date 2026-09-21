@@ -1,0 +1,58 @@
+{
+  "rack_id": "EXAMPLE-5-2",
+  "store_type": "irregular_5_2",
+  "outer_roi": [
+    40,
+    40,
+    1000,
+    480
+  ],
+  "layout": {
+    "mode": "irregular",
+    "rows": [
+      {
+        "cells": 5
+      },
+      {
+        "cells": 2
+      }
+    ]
+  },
+  "cells": [
+    {
+      "row": 0,
+      "col": 0,
+      "expected_product_id": "SKU-A"
+    },
+    {
+      "row": 0,
+      "col": 1,
+      "expected_product_id": "SKU-A"
+    },
+    {
+      "row": 0,
+      "col": 2,
+      "expected_product_id": "SKU-A"
+    },
+    {
+      "row": 0,
+      "col": 3,
+      "expected_product_id": null
+    },
+    {
+      "row": 0,
+      "col": 4,
+      "expected_product_id": null
+    },
+    {
+      "row": 1,
+      "col": 0,
+      "expected_product_id": "SKU-B"
+    },
+    {
+      "row": 1,
+      "col": 1,
+      "expected_product_id": "SKU-B"
+    }
+  ]
+}

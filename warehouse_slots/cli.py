@@ -234,6 +234,28 @@ def cmd_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_rack_verify(args: argparse.Namespace) -> int:
+    """Analyze a photo against a live rack JSON and print PASS/FAIL."""
+    from .rack_config import load_rack
+    from .rack_pipeline import analyze_and_verify
+
+    image_path = Path(args.image)
+    image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+    if image is None:
+        print(f"error: cannot read image: {image_path}", file=sys.stderr)
+        return 1
+    try:
+        rack = load_rack(args.rack)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"error: rack config: {exc}", file=sys.stderr)
+        return 1
+    report = analyze_and_verify(image, rack)
+    json.dump(report, sys.stdout, indent=2, sort_keys=True)
+    sys.stdout.write("\n")
+    summary = report.get("verification", {}).get("summary") or {}
+    return 0 if summary.get("all_pass") else 2
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="warehouse_slots",
@@ -283,7 +305,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--db", default=None)
     p_serve.set_defaults(func=cmd_serve)
 
-    p_ui = sub.add_parser("ui", help="Launch CustomTkinter desktop UI")
+    p_ui = sub.add_parser("ui", help="Launch Electron desktop UI")
     p_ui.add_argument(
         "--config",
         default="config/slots.example.json",
@@ -341,6 +363,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_check.add_argument("--db", default=None)
     _add_phase4_knobs(p_check)
     p_check.set_defaults(func=cmd_check)
+
+    p_rack = sub.add_parser(
+        "rack-verify",
+        help="Live rack: verify expected product IDs vs photo cell scan",
+    )
+    p_rack.add_argument("--image", required=True, help="Rack / crate photo")
+    p_rack.add_argument("--rack", required=True, help="Rack JSON (config/racks/…)")
+    p_rack.set_defaults(func=cmd_rack_verify)
 
     return parser
 

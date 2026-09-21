@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Warehouse Slots — Offline QR & Rack Management</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Top App Navigation -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
+      </div>
+      <div>
+        <h1 class="brand-title">Warehouse Slots</h1>
+        <p class="brand-subtitle">Offline QR Scanner & Rack Flow Manager</p>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="tab-layout">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="9" y1="3" x2="9" y2="21"></line>
+          <line x1="15" y1="3" x2="15" y2="21"></line>
+        </svg>
+        <span>Columns & Slots</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-scan">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <span>Scan & Flow Analysis</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-inventory">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline>
+          <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
+        </svg>
+        <span>Inbound / Outbound</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-skus">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+          <line x1="7" y1="7" x2="7.01" y2="7"></line>
+        </svg>
+        <span>Products & Stock</span>
+      </button>
+    </nav>
+
+    <!-- Backend Status Badge -->
+    <div class="status-badge" id="backendStatus">
+      <span class="status-dot"></span>
+      <span class="status-text">Connecting...</span>
+    </div>
+  </header>
+
+  <!-- Main Application Content -->
+  <main class="app-main">
+
+    <!-- ===================================================================
+         TAB 1: COLUMNS & SLOTS (Detailed Flow for Columns, Slots & Products)
+         =================================================================== -->
+    <section class="tab-panel active" id="tab-layout">
+      <!-- Flow Walkthrough Helper Banner -->
+      <div class="flow-guide-card">
+        <div class="flow-step">
+          <div class="flow-step-num">1</div>
+          <div class="flow-step-content">
+            <strong>Add Column</strong>
+            <span>Create a physical vertical bay or column</span>
+          </div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="flow-step-num">2</div>
+          <div class="flow-step-content">
+            <strong>Configure Slots</strong>
+            <span>Set number of vertical slots/cells</span>
+          </div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="flow-step-num">3</div>
+          <div class="flow-step-content">
+            <strong>Assign Product in Slot</strong>
+            <span>Assign expected product SKU to each slot</span>
+          </div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="flow-step-num">4</div>
+          <div class="flow-step-content">
+            <strong>Ready to Scan</strong>
+            <span>Inspect and verify warehouse contents</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Toolbar -->
+      <div class="toolbar">
+        <div>
+          <h2 class="section-title">Rack Columns &amp; Slots Configuration</h2>
+          <p class="section-desc">Manage physical columns, vertical slot cells, and assigned products in each slot.</p>
+        </div>
+        <div class="toolbar-actions">
+          <button class="btn btn-secondary" id="btnResetBoardPreset">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><polyline points="21 3 21 8 16 8"></polyline><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><polyline points="8 16 3 16 3 21"></polyline></svg>
+            Load 5-Column Board Preset
+          </button>
+          <button class="btn btn-primary" id="btnOpenAddColumnModal">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            + Add Column
+          </button>
+          <button class="btn btn-success" id="btnSaveConfig">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            Save Layout
+          </button>
+        </div>
+      </div>
+
+      <!-- Horizontal Visual Columns Board -->
+      <div class="columns-board-container">
+        <div class="columns-board" id="columnsBoard">
+          <!-- Dynamically populated column cards -->
+          <div class="empty-placeholder">Loading column layout...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         TAB 2: SCAN & FLOW ANALYSIS (Step-by-Step Flow Breakdown)
+         =================================================================== -->
+    <section class="tab-panel" id="tab-scan">
+      <!-- Step Guidance Banner -->
+      <div class="flow-guide-card">
+        <div class="flow-step">
+          <div class="flow-step-num">1</div>
+          <div class="flow-step-content">
+            <strong>Choose Image</strong>
+            <span>Select fixture board or capture file</span>
+          </div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="flow-step-num">2</div>
+          <div class="flow-step-content">
+            <strong>Analyze Slots</strong>
+            <span>QR decode + occupancy detection</span>
+          </div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="flow-step-num">3</div>
+          <div class="flow-step-content">
+            <strong>Analyze Flow</strong>
+            <span>Compare Expected vs. Detected</span>
+          </div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="flow-step-num">4</div>
+          <div class="flow-step-content">
+            <strong>Verify / Confirm</strong>
+            <span>Record stock movements (IN/OUT)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analysis Toolbar -->
+      <div class="toolbar">
+        <div class="scan-inputs">
+          <label class="form-label" for="selectFixture">Source Image:</label>
+          <select class="form-select" id="selectFixture">
+            <option value="">Loading fixtures...</option>
+          </select>
+          <button class="btn btn-secondary" id="btnBrowseImage">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            Browse File...
+          </button>
+        </div>
+        <div>
+          <button class="btn btn-primary btn-lg" id="btnRunAnalysis">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            Run Slot Analysis
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Summary Metric Pills -->
+      <div class="metric-ribbon" id="scanMetricsRibbon" style="display: none;">
+        <div class="metric-pill metric-total">
+          <span class="metric-label">Total Slots:</span>
+          <span class="metric-val" id="metricTotal">0</span>
+        </div>
+        <div class="metric-pill metric-match">
+          <span class="metric-label">🟢 Matches:</span>
+          <span class="metric-val" id="metricMatches">0</span>
+        </div>
+        <div class="metric-pill metric-empty">
+          <span class="metric-label">🟡 Empty:</span>
+          <span class="metric-val" id="metricEmpty">0</span>
+        </div>
+        <div class="metric-pill metric-mismatch">
+          <span class="metric-label">🔴 Mismatches:</span>
+          <span class="metric-val" id="metricMismatches">0</span>
+        </div>
+        <div class="metric-pill metric-unreadable">
+          <span class="metric-label">🟠 Unreadable:</span>
+          <span class="metric-val" id="metricUnreadable">0</span>
+        </div>
+      </div>
+
+      <!-- Scan Workspace (Canvas on Left, Flow Inspector on Right) -->
+      <div class="scan-workspace">
+        <!-- Visual Overlay Preview Canvas Container -->
+        <div class="canvas-panel">
+          <div class="panel-header">
+            <h3>Visual Slot Overlay</h3>
+            <span class="badge" id="imageNameBadge">No image loaded</span>
+          </div>
+          <div class="canvas-wrapper" id="canvasWrapper">
+            <img id="overlayImagePreview" src="" alt="Slot Preview" style="display: none;">
+            <div class="canvas-placeholder" id="canvasPlaceholder">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <p>Select an image and click <strong>"Run Slot Analysis"</strong> to view the detected column and slot overlay.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Flow Analysis Inspector & Details Panel -->
+        <div class="inspector-panel">
+          <div class="panel-header">
+            <h3>Detailed Flow Inspector</h3>
+            <span class="badge badge-info" id="inspectorHeaderBadge">Click any slot to analyze</span>
+          </div>
+
+          <!-- Single Slot Flow Breakdown Card -->
+          <div class="slot-flow-card" id="slotFlowCard">
+            <div class="flow-card-placeholder">Select any slot from the table below or run an analysis to inspect its detailed flow.</div>
+          </div>
+
+          <!-- Filterable Slots Flow Table -->
+          <div class="table-card">
+            <div class="table-filters">
+              <span class="filter-title">Filter Slots:</span>
+              <button class="filter-btn active" data-filter="all">All (<span id="countFilterAll">0</span>)</button>
+              <button class="filter-btn" data-filter="match">Matches (<span id="countFilterMatch">0</span>)</button>
+              <button class="filter-btn" data-filter="mismatch">Mismatches (<span id="countFilterMismatch">0</span>)</button>
+              <button class="filter-btn" data-filter="empty">Empty (<span id="countFilterEmpty">0</span>)</button>
+              <button class="filter-btn" data-filter="unreadable">Unreadable (<span id="countFilterUnreadable">0</span>)</button>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table" id="slotsAnalysisTable">
+                <thead>
+                  <tr>
+                    <th>Column</th>
+                    <th>Slot #</th>
+                    <th>Expected Product</th>
+                    <th>Detected QR</th>
+                    <th>Source</th>
+                    <th>Flow Status</th>
+                  </tr>
+                </thead>
+                <tbody id="slotsTableBody">
+                  <tr>
+                    <td colspan="6" class="text-center text-muted">No analysis data yet. Run an analysis above.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         TAB 3: INBOUND / OUTBOUND (Inventory Events Confirmation)
+         =================================================================== -->
+    <section class="tab-panel" id="tab-inventory">
+      <div class="toolbar">
+        <div>
+          <h2 class="section-title">Inbound &amp; Outbound Inventory Movement</h2>
+          <p class="section-desc">Confirm incoming products (IN) or dispatching products (OUT) linked to slot scans.</p>
+        </div>
+      </div>
+
+      <div class="inventory-grid">
+        <!-- Quick Confirm Card -->
+        <div class="card confirm-action-card">
+          <div class="card-header">
+            <h3>Confirm Inventory Action</h3>
+          </div>
+          <div class="card-body">
+            <p class="text-muted">Apply detected items from the active scan to update warehouse stock in SQLite:</p>
+            <div class="form-group">
+              <label class="form-label" for="eventNoteInput">Optional Note / Batch ID:</label>
+              <input type="text" class="form-input" id="eventNoteInput" placeholder="e.g., Inbound shipment #104, Truck-A">
+            </div>
+            <div class="confirm-btn-row">
+              <button class="btn btn-success btn-lg" id="btnConfirmIn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"></path><path d="M19 12l-7 7-7-7"></path></svg>
+                Confirm Inbound (IN)
+              </button>
+              <button class="btn btn-danger btn-lg" id="btnConfirmOut">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg>
+                Confirm Outbound (OUT)
+              </button>
+            </div>
+            <div id="confirmFeedback" class="feedback-msg"></div>
+          </div>
+        </div>
+
+        <!-- Recent Events History -->
+        <div class="card events-history-card">
+          <div class="card-header">
+            <h3>Recent Inventory Movements</h3>
+            <button class="btn btn-sm btn-secondary" id="btnRefreshEvents">Refresh</button>
+          </div>
+          <div class="card-body table-scroll">
+            <table class="data-table" id="eventsTable">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Direction</th>
+                  <th>Timestamp (UTC)</th>
+                  <th>Note</th>
+                  <th>SKU Lines</th>
+                </tr>
+              </thead>
+              <tbody id="eventsTableBody">
+                <tr><td colspan="5" class="text-center text-muted">Loading events...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         TAB 4: PRODUCT CATALOG & STOCK (SKUs & On-Hand Inventory)
+         =================================================================== -->
+    <section class="tab-panel" id="tab-skus">
+      <div class="toolbar">
+        <div>
+          <h2 class="section-title">Product Catalog &amp; On-Hand Stock</h2>
+          <p class="section-desc">Manage registered product SKUs and monitor current net stock derived from IN/OUT events.</p>
+        </div>
+        <div class="toolbar-actions">
+          <button class="btn btn-secondary" id="btnSeedSkus">Seed Default Fixture SKUs</button>
+        </div>
+      </div>
+
+      <div class="skus-layout">
+        <!-- Add SKU Card -->
+        <div class="card add-sku-card">
+          <div class="card-header">
+            <h3>+ Register New Product (SKU)</h3>
+          </div>
+          <div class="card-body">
+            <form id="formAddSku">
+              <div class="form-group">
+                <label class="form-label" for="skuIdInput">Product / SKU ID *</label>
+                <input type="text" class="form-input" id="skuIdInput" placeholder="e.g., SKU-DELTA" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="skuNameInput">Product Name *</label>
+                <input type="text" class="form-input" id="skuNameInput" placeholder="e.g., Delta Assembly Kit" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="skuDescInput">Description</label>
+                <input type="text" class="form-input" id="skuDescInput" placeholder="e.g., Component for Rack Bay">
+              </div>
+              <button type="submit" class="btn btn-primary" style="width: 100%;">Add Product to Catalog</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Stock Table Card -->
+        <div class="card stock-table-card">
+          <div class="card-header">
+            <h3>Current Stock Status</h3>
+            <button class="btn btn-sm btn-secondary" id="btnRefreshStock">Refresh</button>
+          </div>
+          <div class="card-body table-scroll">
+            <table class="data-table" id="stockTable">
+              <thead>
+                <tr>
+                  <th>SKU ID</th>
+                  <th>Product Name</th>
+                  <th>Description</th>
+                  <th>On-Hand Stock</th>
+                  <th>Stock Status</th>
+                </tr>
+              </thead>
+              <tbody id="stockTableBody">
+                <tr><td colspan="5" class="text-center text-muted">Loading stock...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================================================================
+       MODAL: ADD NEW COLUMN
+       =================================================================== -->
+  <div class="modal-overlay" id="modalAddColumn" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>+ Add Physical Column</h3>
+        <button class="btn-icon" id="btnCloseAddColumnModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formAddColumn">
+          <div class="form-group">
+            <label class="form-label" for="colIdInput">Column Name / ID *</label>
+            <input type="text" class="form-input" id="colIdInput" placeholder="e.g., F6, COL-B" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="colCapacityInput">Slot Capacity (Number of Slots) *</label>
+            <input type="number" class="form-input" id="colCapacityInput" value="6" min="1" max="50" required>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label" for="colXInput">ROI X (px)</label>
+              <input type="number" class="form-input" id="colXInput" value="1440" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="colYInput">ROI Y (px)</label>
+              <input type="number" class="form-input" id="colYInput" value="40" required>
+            </div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label" for="colWInput">ROI Width (px)</label>
+              <input type="number" class="form-input" id="colWInput" value="240" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="colHInput">ROI Height (px)</label>
+              <input type="number" class="form-input" id="colHInput" value="1440" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="colDefaultSkuInput">Initial Product Assignment (Optional)</label>
+            <select class="form-select" id="colDefaultSkuInput">
+              <option value="">(Leave slots empty)</option>
+            </select>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btnCancelAddColumn">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Column</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- JavaScript Application Bundle -->
+  <script src="app.js"></script>
+</body>
+</html>

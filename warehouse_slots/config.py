@@ -18,6 +18,7 @@ class SlotConfig:
     id: str
     roi: Tuple[int, int, int, int]  # x, y, w, h
     capacity: int
+    expected_products: Optional[List[Optional[str]]] = None
 
     def __post_init__(self) -> None:
         if self.capacity < 1:
@@ -27,6 +28,16 @@ class SlotConfig:
             raise ValueError(f"slot {self.id!r}: roi width/height must be >= 1")
         if x < 0 or y < 0:
             raise ValueError(f"slot {self.id!r}: roi x/y must be >= 0")
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "id": self.id,
+            "roi": list(self.roi),
+            "capacity": self.capacity,
+        }
+        if self.expected_products is not None:
+            d["expected_products"] = self.expected_products
+        return d
 
 
 @dataclass(frozen=True)
@@ -58,10 +69,15 @@ def _parse_slot(raw: dict[str, Any]) -> SlotConfig:
     roi = raw["roi"]
     if not isinstance(roi, Sequence) or len(roi) != 4:
         raise ValueError(f"roi must be [x, y, w, h], got {roi!r}")
+    expected = raw.get("expected_products")
+    expected_list = None
+    if expected is not None and isinstance(expected, list):
+        expected_list = [str(x) if x is not None else None for x in expected]
     return SlotConfig(
         id=str(raw["id"]),
         roi=(int(roi[0]), int(roi[1]), int(roi[2]), int(roi[3])),
         capacity=int(raw["capacity"]),
+        expected_products=expected_list,
     )
 
 
